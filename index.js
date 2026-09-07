@@ -1,28 +1,49 @@
+// index.js
 const express = require('express');
 const cors = require('cors');
-const helmet = require('helmet');
 const dotenv = require('dotenv');
 
-// Load environment variables
 dotenv.config();
 
 const app = express();
 
 // Middleware
-app.use(helmet());
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Import routes
-const fiftyTwoWeekRoutes = require('./routes/fiftyTwoWeekRoutes');
+// ✅ FIX: Use the correct path with 'src'
+const fiftyTwoWeekRoutes = require('./src/routes/fiftyTwoWeekRoutes');
 
 // Mount routes
 app.use('/api', fiftyTwoWeekRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-    res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+    res.status(200).json({ 
+        status: 'ok', 
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV || 'development'
+    });
+});
+
+// Root endpoint
+app.get('/', (req, res) => {
+    res.status(200).json({
+        name: 'NEPSE 52-Week Tracking API',
+        version: '1.0.0',
+        endpoints: {
+            health: '/health',
+            market_status: '/api/market-status',
+            check_hit: '/api/check-52-week-hit',
+            check_near: '/api/check-trading-near',
+            range: '/api/52-week-range',
+            notifications: '/api/52-week-notifications',
+            range_status: '/api/52-week-range/status',
+            update_range: '/api/52-week-range/update (POST)',
+            update_eod: '/api/update-52-week-range (POST)'
+        }
+    });
 });
 
 // Error handling middleware
@@ -42,13 +63,14 @@ app.use((req, res) => {
     });
 });
 
-const PORT = process.env.PORT || 3000;
+// Export for Vercel
+module.exports = app;
 
-if (require.main === module) {
+// Start server if not in Vercel environment
+if (process.env.NODE_ENV !== 'production') {
+    const PORT = process.env.PORT || 3000;
     app.listen(PORT, () => {
         console.log(`Server running on port ${PORT}`);
         console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
     });
 }
-
-module.exports = app;
