@@ -1,0 +1,16 @@
+{
+  "crons": [
+    {
+      "path": "/api/check-market-status",
+      "schedule": "0 9 * * 1-5"
+    },
+    {
+      "path": "/api/check-52-week-hit",
+      "schedule": "*/15 11-14 * * 1-5"
+    },
+    {
+      "path": "/api/update-52-week-range",
+      "schedule": "30 15 * * 1-5"
+    }
+  ]
+}
