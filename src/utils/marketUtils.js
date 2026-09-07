@@ -49,7 +49,7 @@ const getCurrentDateInNepal = () => {
 const getLastCompletedTradingDay = () => {
     let date = moment().tz('Asia/Kathmandu');
     let attempts = 0;
-    
+
     while (attempts < 7) {
         const dayOfWeek = date.day();
         // Trading days: Monday(1) to Friday(5)
@@ -59,7 +59,7 @@ const getLastCompletedTradingDay = () => {
         date.subtract(1, 'day');
         attempts++;
     }
-    
+
     return null;
 };
 
@@ -101,7 +101,8 @@ const formatNearNote = (symbol, isNearHigh, isNearLow) => {
  */
 const calculateDistance = (current, boundary) => {
     if (!current || !boundary || boundary === 0) return null;
-    return ((current - boundary) / boundary) * 100;
+    // Use absolute value to avoid negative distances
+    return Math.abs(((current - boundary) / boundary) * 100);
 };
 
 module.exports = {
