@@ -49,7 +49,7 @@ const getCurrentDateInNepal = () => {
 const getLastCompletedTradingDay = () => {
     let date = moment().tz('Asia/Kathmandu');
     let attempts = 0;
-
+    
     while (attempts < 7) {
         const dayOfWeek = date.day();
         // Trading days: Monday(1) to Friday(5)
@@ -59,7 +59,7 @@ const getLastCompletedTradingDay = () => {
         date.subtract(1, 'day');
         attempts++;
     }
-
+    
     return null;
 };
 
@@ -85,23 +85,24 @@ const safeParseFloat = (value) => {
 /**
  * Format note message for near-high/low
  */
-// const formatNearNote = (symbol, isNearHigh, isNearLow) => {
-//     if (isNearHigh && isNearLow) {
-//         return `${symbol} is trading near both 52 week high and low (unusual)`;
-//     } else if (isNearHigh) {
-//         return `${symbol} is trading near 52 week high`;
-//     } else if (isNearLow) {
-//         return `${symbol} is trading near 52 week low`;
-//     }
-//     return null;
-// };
+const formatNearNote = (symbol, isNearHigh, isNearLow) => {
+    if (isNearHigh && isNearLow) {
+        return `${symbol} is trading near both 52 week high and low (unusual)`;
+    } else if (isNearHigh) {
+        return `${symbol} is trading near 52 week high`;
+    } else if (isNearLow) {
+        return `${symbol} is trading near 52 week low`;
+    }
+    return null;
+};
 
 /**
- * Calculate distance percentage
+ * Calculate distance percentage (absolute value for near check)
+ * Returns the absolute percentage distance between current and boundary
  */
 const calculateDistance = (current, boundary) => {
     if (!current || !boundary || boundary === 0) return null;
-    // Use absolute value to avoid negative distances
+    // Use absolute value to ensure positive distance
     return Math.abs(((current - boundary) / boundary) * 100);
 };
 
