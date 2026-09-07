@@ -95,6 +95,11 @@ const check52WeekHit = async (req, res) => {
  * Check if stocks are trading near 52-week high/low
  * To be called by cronjob.org during trading hours
  */
+/**
+ * GET /check-trading-near
+ * Check if stocks are trading near 52-week high/low
+ * To be called by cronjob.org during trading hours
+ */
 const checkTradingNear = async (req, res) => {
     try {
         const { symbol } = req.query;
@@ -157,17 +162,30 @@ const checkTradingNear = async (req, res) => {
             const high = rangeRecord['52_week_high'];
             const low = rangeRecord['52_week_low'];
 
-            // Calculate distances
+            // Calculate distances (using absolute values)
             const distanceHigh = calculateDistance(ltp, high);
             const distanceLow = calculateDistance(ltp, low);
 
+            // Check if within threshold (using absolute distance values)
             const isNearHigh = distanceHigh !== null && distanceHigh <= NEAR_THRESHOLD;
             const isNearLow = distanceLow !== null && distanceLow <= NEAR_THRESHOLD;
 
-            // Determine if note should change
-            const currentNote = rangeRecord.note;
-            const newNote = formatNearNote(stock.symbol, isNearHigh, isNearLow);
+            // Determine the appropriate note
+            let newNote = null;
+            if (isNearHigh && isNearLow) {
+                newNote = `${stock.symbol} is trading near both 52 week high and low (unusual)`;
+            } else if (isNearHigh) {
+                newNote = `${stock.symbol} is trading near 52 week high`;
+            } else if (isNearLow) {
+                newNote = `${stock.symbol} is trading near 52 week low`;
+            } else {
+                newNote = null; // Not near either boundary
+            }
 
+            // Get current note
+            const currentNote = rangeRecord.note;
+
+            // Update if note has changed
             if (currentNote !== newNote) {
                 updates.push({
                     symbol: stock.symbol,
@@ -175,6 +193,7 @@ const checkTradingNear = async (req, res) => {
                 });
             }
 
+            // Build result object for response
             results.push({
                 symbol: stock.symbol,
                 ltp: ltp,
@@ -314,9 +333,9 @@ const update52WeekRangeData = async (req, res) => {
 
         // Validate each stock
         const validStocks = stocks.filter(stock => {
-            return stock.symbol && 
-                   stock['52_week_high'] !== undefined && 
-                   stock['52_week_low'] !== undefined;
+            return stock.symbol &&
+                stock['52_week_high'] !== undefined &&
+                stock['52_week_low'] !== undefined;
         });
 
         if (validStocks.length === 0) {
@@ -355,7 +374,7 @@ const updateEndOfDay52WeekRange = async (req, res) => {
     try {
         // Get the trading date to process
         const tradingDate = req.body.tradingDate || getLastCompletedTradingDay();
-        
+
         if (!tradingDate) {
             return res.status(400).json({
                 success: false,
@@ -479,7 +498,7 @@ const get52WeekRangeStatus = async (req, res) => {
     try {
         // Get count of records
         const records = await getAllRangeRecords();
-        
+
         // Get latest notification date
         const latestNotification = await supabase
             .from('52_week_notification')
@@ -496,8 +515,8 @@ const get52WeekRangeStatus = async (req, res) => {
                 last_updated: records.length > 0 ? records[0].updated_at : null,
                 symbols: records.length,
                 last_completed_trading_day: lastCompletedDay,
-                latest_notification: latestNotification.data && latestNotification.data.length > 0 
-                    ? latestNotification.data[0].created_at 
+                latest_notification: latestNotification.data && latestNotification.data.length > 0
+                    ? latestNotification.data[0].created_at
                     : null,
                 near_threshold: NEAR_THRESHOLD,
                 market_status: marketStatus,
@@ -521,7 +540,7 @@ const get52WeekRangeStatus = async (req, res) => {
 const getMarketStatus = async (req, res) => {
     try {
         const status = await fetchMarketStatus();
-        
+
         return res.status(200).json({
             success: true,
             data: {
