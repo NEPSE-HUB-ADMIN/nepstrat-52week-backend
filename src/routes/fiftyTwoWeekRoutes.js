@@ -22,6 +22,7 @@ router.get('/market-status', getMarketStatus);
 // POST routes
 router.post('/52-week-range/update', update52WeekRangeData);
 router.post('/update-52-week-range', updateEndOfDay52WeekRange);
+router.post('/update-range-from-live', updateRangeFromLive);
 
 // Log routes
 console.log('✅ Routes registered in router:');
