@@ -1,4 +1,6 @@
-// src/utils/marketUtils.js
+/**
+ * Market utility functions for NEPSE trading operations
+ */
 
 const moment = require('moment-timezone');
 const axios = require('axios');
@@ -30,70 +32,7 @@ const fetchMarketStatus = async () => {
         };
     } catch (error) {
         console.error('Failed to fetch market status:', error.message);
-        // Fallback to time-based check if API fails
         return null;
-    }
-};
-
-/**
- * Check if the market is open using the market status API
- * @returns {Promise<boolean>}
- */
-const isMarketOpen = async () => {
-    try {
-        const status = await fetchMarketStatus();
-        if (status) {
-            // "market open" indicates the market is currently open for trading
-            return status.status === 'market open';
-        }
-        // Fallback: if API fails, use time-based check
-        console.warn('Market status API failed, falling back to time-based check');
-        return isTradingDayTimeBased();
-    } catch (error) {
-        console.error('Error checking market status:', error);
-        return false;
-    }
-};
-
-/**
- * Time-based check for trading hours and days (fallback)
- * Trading days: Monday to Friday (1-5 in moment where Monday=1)
- * Trading hours: 11:00 AM to 3:00 PM NPT
- */
-const isTradingDayTimeBased = () => {
-    const now = moment().tz('Asia/Kathmandu');
-    const dayOfWeek = now.day(); // 1=Monday, ..., 5=Friday
-
-    // Check if it's a weekday (Monday to Friday)
-    if (dayOfWeek < 1 || dayOfWeek > 5) {
-        return false;
-    }
-
-    const hour = now.hour();
-    const minute = now.minute();
-    const currentTime = hour + minute / 60;
-
-    return currentTime >= TRADING_START_HOUR && currentTime < TRADING_END_HOUR;
-};
-
-/**
- * Check if the market should be open today (for scheduling)
- * Uses the market status API's "today" field
- */
-const isMarketDay = async () => {
-    try {
-        const status = await fetchMarketStatus();
-        if (status) {
-            // "today":"open" means it's a trading day
-            return status.today === 'open';
-        }
-        // Fallback: check if it's a weekday
-        const now = moment().tz('Asia/Kathmandu');
-        const dayOfWeek = now.day();
-        return dayOfWeek >= 1 && dayOfWeek <= 5;
-    } catch (error) {
-        console.error('Error checking market day:', error);
-        return false;
     }
 };
 
@@ -110,7 +49,7 @@ const getCurrentDateInNepal = () => {
 const getLastCompletedTradingDay = () => {
     let date = moment().tz('Asia/Kathmandu');
     let attempts = 0;
-
+    
     while (attempts < 7) {
         const dayOfWeek = date.day();
         // Trading days: Monday(1) to Friday(5)
@@ -120,7 +59,7 @@ const getLastCompletedTradingDay = () => {
         date.subtract(1, 'day');
         attempts++;
     }
-
+    
     return null;
 };
 
@@ -167,9 +106,6 @@ const calculateDistance = (current, boundary) => {
 
 module.exports = {
     fetchMarketStatus,
-    isMarketOpen,
-    isMarketDay,
-    isTradingDayTimeBased,
     getCurrentDateInNepal,
     getLastCompletedTradingDay,
     normalizeSymbol,
