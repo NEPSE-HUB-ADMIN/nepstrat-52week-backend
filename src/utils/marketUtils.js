@@ -85,16 +85,16 @@ const safeParseFloat = (value) => {
 /**
  * Format note message for near-high/low
  */
-const formatNearNote = (symbol, isNearHigh, isNearLow) => {
-    if (isNearHigh && isNearLow) {
-        return `${symbol} is trading near both 52 week high and low (unusual)`;
-    } else if (isNearHigh) {
-        return `${symbol} is trading near 52 week high`;
-    } else if (isNearLow) {
-        return `${symbol} is trading near 52 week low`;
-    }
-    return null;
-};
+// const formatNearNote = (symbol, isNearHigh, isNearLow) => {
+//     if (isNearHigh && isNearLow) {
+//         return `${symbol} is trading near both 52 week high and low (unusual)`;
+//     } else if (isNearHigh) {
+//         return `${symbol} is trading near 52 week high`;
+//     } else if (isNearLow) {
+//         return `${symbol} is trading near 52 week low`;
+//     }
+//     return null;
+// };
 
 /**
  * Calculate distance percentage
