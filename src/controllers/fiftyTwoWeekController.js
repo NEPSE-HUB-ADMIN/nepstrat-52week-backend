@@ -19,8 +19,6 @@ const {
     getAllSymbols
 } = require('../services/historicalDataService');
 const {
-    isMarketOpen,
-    isMarketDay,
     fetchMarketStatus,
     getCurrentDateInNepal,
     getLastCompletedTradingDay,
@@ -34,25 +32,10 @@ const NEAR_THRESHOLD = parseFloat(process.env.NEAR_52_WEEK_PERCENT) || 5;
 /**
  * GET /check-52-week-hit
  * Check for 52-week high/low hits based on live market data
+ * To be called by cronjob.org during trading hours
  */
 const check52WeekHit = async (req, res) => {
     try {
-        // Check if the market is currently open using the market status API
-        const marketOpen = await isMarketOpen();
-        if (!marketOpen) {
-            return res.status(200).json({
-                success: true,
-                message: 'Market is currently closed, skipping hit check',
-                data: {
-                    checked: 0,
-                    high_hits: 0,
-                    low_hits: 0,
-                    new_notifications: 0,
-                    market_status: 'closed'
-                }
-            });
-        }
-
         // Fetch live market data
         let liveData;
         try {
@@ -93,7 +76,7 @@ const check52WeekHit = async (req, res) => {
                 high_hits: results.highHits,
                 low_hits: results.lowHits,
                 new_notifications: results.newNotifications,
-                notifications: results.notifications.slice(0, 20), // Return first 20 for response
+                notifications: results.notifications.slice(0, 20),
                 errors: results.errors
             }
         });
@@ -110,27 +93,11 @@ const check52WeekHit = async (req, res) => {
 /**
  * GET /check-trading-near
  * Check if stocks are trading near 52-week high/low
+ * To be called by cronjob.org during trading hours
  */
 const checkTradingNear = async (req, res) => {
     try {
         const { symbol } = req.query;
-
-        // Check if the market is currently open
-        const marketOpen = await isMarketOpen();
-        if (!marketOpen) {
-            return res.status(200).json({
-                success: true,
-                message: 'Market is currently closed, skipping trading near check',
-                data: {
-                    threshold: NEAR_THRESHOLD,
-                    total_processed: 0,
-                    note_updates: 0,
-                    updated: 0,
-                    results: [],
-                    market_status: 'closed'
-                }
-            });
-        }
 
         // Fetch live market data
         let liveData;
@@ -241,7 +208,7 @@ const checkTradingNear = async (req, res) => {
                 total_processed: results.length,
                 note_updates: updates.length,
                 updated: updateResult.updated || 0,
-                results: results.slice(0, 100) // Return first 100 for response
+                results: results.slice(0, 100)
             }
         });
 
@@ -315,7 +282,7 @@ const getNotificationsHandler = async (req, res) => {
             pagination: {
                 limit: filters.limit,
                 offset: filters.offset,
-                total: notifications.length // Note: This is total returned, not total in DB
+                total: notifications.length
             }
         });
 
@@ -331,6 +298,7 @@ const getNotificationsHandler = async (req, res) => {
 /**
  * POST /52-week-range/update
  * Update/upsert 52-week range data
+ * Can be called manually or via cronjob.org
  */
 const update52WeekRangeData = async (req, res) => {
     try {
@@ -346,9 +314,9 @@ const update52WeekRangeData = async (req, res) => {
 
         // Validate each stock
         const validStocks = stocks.filter(stock => {
-            return stock.symbol &&
-                stock['52_week_high'] !== undefined &&
-                stock['52_week_low'] !== undefined;
+            return stock.symbol && 
+                   stock['52_week_high'] !== undefined && 
+                   stock['52_week_low'] !== undefined;
         });
 
         if (validStocks.length === 0) {
@@ -381,30 +349,13 @@ const update52WeekRangeData = async (req, res) => {
 /**
  * POST /update-52-week-range
  * End-of-day 52-week range update
+ * To be called by cronjob.org after market close (3:30 PM NPT)
  */
 const updateEndOfDay52WeekRange = async (req, res) => {
     try {
-        // Check if today is a trading day
-        const isTradingDay = await isMarketDay();
-        if (!isTradingDay) {
-            return res.status(200).json({
-                success: true,
-                message: 'Not a trading day, skipping range update',
-                data: {
-                    trading_date: getCurrentDateInNepal(),
-                    processed: 0,
-                    updated: 0,
-                    unchanged: 0,
-                    skipped: 0,
-                    errors: 0,
-                    market_status: 'closed'
-                }
-            });
-        }
-
         // Get the trading date to process
         const tradingDate = req.body.tradingDate || getLastCompletedTradingDay();
-
+        
         if (!tradingDate) {
             return res.status(400).json({
                 success: false,
@@ -461,7 +412,6 @@ const updateEndOfDay52WeekRange = async (req, res) => {
 
             const current = currentMap.get(result.symbol);
             if (!current) {
-                // Symbol exists in 52_week_range but we couldn't find it? (shouldn't happen)
                 skipped++;
                 continue;
             }
@@ -529,7 +479,7 @@ const get52WeekRangeStatus = async (req, res) => {
     try {
         // Get count of records
         const records = await getAllRangeRecords();
-
+        
         // Get latest notification date
         const latestNotification = await supabase
             .from('52_week_notification')
@@ -546,8 +496,8 @@ const get52WeekRangeStatus = async (req, res) => {
                 last_updated: records.length > 0 ? records[0].updated_at : null,
                 symbols: records.length,
                 last_completed_trading_day: lastCompletedDay,
-                latest_notification: latestNotification.data && latestNotification.data.length > 0
-                    ? latestNotification.data[0].created_at
+                latest_notification: latestNotification.data && latestNotification.data.length > 0 
+                    ? latestNotification.data[0].created_at 
                     : null,
                 near_threshold: NEAR_THRESHOLD,
                 market_status: marketStatus,
@@ -571,15 +521,11 @@ const get52WeekRangeStatus = async (req, res) => {
 const getMarketStatus = async (req, res) => {
     try {
         const status = await fetchMarketStatus();
-        const isOpen = await isMarketOpen();
-        const isDay = await isMarketDay();
-
+        
         return res.status(200).json({
             success: true,
             data: {
                 api_status: status,
-                is_market_open: isOpen,
-                is_trading_day: isDay,
                 current_time: new Date().toISOString()
             }
         });
