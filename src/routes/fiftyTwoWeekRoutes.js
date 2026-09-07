@@ -23,7 +23,7 @@ router.get('/52-week-notifications', getNotificationsHandler);
 router.get('/52-week-range/status', get52WeekRangeStatus);
 router.get('/market-status', getMarketStatus);
 
-// Protected/Admin routes (add authentication middleware as needed)
+// ✅ POST routes (make sure these exist)
 router.post('/52-week-range/update', update52WeekRangeData);
 router.post('/update-52-week-range', updateEndOfDay52WeekRange);
 
