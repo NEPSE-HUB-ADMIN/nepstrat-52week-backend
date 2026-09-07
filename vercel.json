@@ -1,16 +1,19 @@
 {
-  "crons": [
+  "version": 2,
+  "builds": [
     {
-      "path": "/api/check-market-status",
-      "schedule": "0 9 * * 1-5"
+      "src": "index.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "index.js"
     },
     {
-      "path": "/api/check-52-week-hit",
-      "schedule": "*/15 11-14 * * 1-5"
-    },
-    {
-      "path": "/api/update-52-week-range",
-      "schedule": "30 15 * * 1-5"
+      "src": "/(.*)",
+      "dest": "index.js"
     }
   ]
 }
