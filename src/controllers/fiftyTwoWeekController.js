@@ -530,6 +530,219 @@ const get52WeekRangeStatus = async (req, res) => {
 };
 
 /**
+ * POST /api/update-range-from-live
+ * Update 52-week range based on live market API data
+ * Checks open, high, low, LTP and updates range if breached
+ */
+const updateRangeFromLive = async (req, res) => {
+    try {
+        // 1. Fetch live market data
+        let liveData;
+        try {
+            liveData = await fetchLiveMarketData();
+        } catch (error) {
+            return res.status(502).json({
+                success: false,
+                message: `Unable to fetch live NEPSE data: ${error.message}`
+            });
+        }
+
+        if (!liveData || liveData.length === 0) {
+            return res.status(502).json({
+                success: false,
+                message: 'Empty response from live NEPSE API'
+            });
+        }
+
+        // 2. Fetch existing 52-week range records
+        let rangeRecords;
+        try {
+            rangeRecords = await getAllRangeRecords();
+        } catch (error) {
+            return res.status(500).json({
+                success: false,
+                message: `Failed to fetch 52-week range data: ${error.message}`
+            });
+        }
+
+        // 3. Create map for faster lookup
+        const rangeMap = new Map();
+        rangeRecords.forEach(record => {
+            rangeMap.set(record.symbol, record);
+        });
+
+        // 4. Process each stock from live data
+        const updates = [];
+        const newHighs = [];
+        const newLows = [];
+        const errors = [];
+        let processed = 0;
+
+        for (const stock of liveData) {
+            try {
+                const rangeRecord = rangeMap.get(stock.symbol);
+
+                // Skip if no 52-week range data available
+                if (!rangeRecord) {
+                    continue;
+                }
+
+                processed++;
+
+                const currentHigh = rangeRecord['52_week_high'];
+                const currentLow = rangeRecord['52_week_low'];
+                const currentLtp = rangeRecord.ltp;
+
+                // Skip if current values are null
+                if (currentHigh === null || currentLow === null) {
+                    continue;
+                }
+
+                let newHigh = currentHigh;
+                let newLow = currentLow;
+                let highBreached = false;
+                let lowBreached = false;
+                let breachPrice = null;
+                let breachType = null;
+
+                // Check if ANY live value breaches the current 52-week high
+                // Priority: highPrice > LTP > openPrice
+                if (stock.high !== null && stock.high > currentHigh) {
+                    newHigh = stock.high;
+                    highBreached = true;
+                    breachPrice = stock.high;
+                    breachType = 'HIGH';
+                } else if (stock.ltp !== null && stock.ltp > currentHigh) {
+                    newHigh = stock.ltp;
+                    highBreached = true;
+                    breachPrice = stock.ltp;
+                    breachType = 'HIGH';
+                } else if (stock.open !== null && stock.open > currentHigh) {
+                    newHigh = stock.open;
+                    highBreached = true;
+                    breachPrice = stock.open;
+                    breachType = 'HIGH';
+                }
+
+                // Check if ANY live value breaches the current 52-week low
+                // Priority: lowPrice < LTP < openPrice
+                if (stock.low !== null && stock.low < currentLow) {
+                    newLow = stock.low;
+                    lowBreached = true;
+                    breachPrice = stock.low;
+                    breachType = 'LOW';
+                } else if (stock.ltp !== null && stock.ltp < currentLow) {
+                    newLow = stock.ltp;
+                    lowBreached = true;
+                    breachPrice = stock.ltp;
+                    breachType = 'LOW';
+                } else if (stock.open !== null && stock.open < currentLow) {
+                    newLow = stock.open;
+                    lowBreached = true;
+                    breachPrice = stock.open;
+                    breachType = 'LOW';
+                }
+
+                // If breach detected, update the range
+                if (highBreached || lowBreached) {
+                    const updateData = {
+                        symbol: stock.symbol,
+                        '52_week_high': newHigh,
+                        '52_week_low': newLow,
+                        ltp: stock.ltp,
+                        updated_at: new Date().toISOString()
+                    };
+
+                    // If only high breached, keep low unchanged
+                    if (!highBreached) {
+                        updateData['52_week_high'] = currentHigh;
+                    }
+                    // If only low breached, keep high unchanged
+                    if (!lowBreached) {
+                        updateData['52_week_low'] = currentLow;
+                    }
+
+                    updates.push(updateData);
+
+                    // Track for response
+                    if (highBreached) {
+                        newHighs.push({
+                            symbol: stock.symbol,
+                            old_high: currentHigh,
+                            new_high: newHigh,
+                            breached_by: breachPrice
+                        });
+                    }
+                    if (lowBreached) {
+                        newLows.push({
+                            symbol: stock.symbol,
+                            old_low: currentLow,
+                            new_low: newLow,
+                            breached_by: breachPrice
+                        });
+                    }
+
+                    // Create notification
+                    const tradingDate = new Date().toISOString().split('T')[0];
+                    if (breachType && breachPrice !== null) {
+                        await createNotification(
+                            stock.symbol,
+                            breachPrice,
+                            breachType,
+                            tradingDate
+                        );
+                    }
+                }
+
+            } catch (error) {
+                errors.push({
+                    symbol: stock.symbol,
+                    error: error.message
+                });
+            }
+        }
+
+        // 5. Apply all updates (batch)
+        let updateResult = { updated: 0, errors: [] };
+        if (updates.length > 0) {
+            try {
+                updateResult = await bulkUpdateRangeRecords(updates);
+            } catch (error) {
+                console.error('Error updating ranges:', error);
+                updateResult.errors.push({ error: error.message });
+            }
+        }
+
+        // 6. Return response
+        return res.status(200).json({
+            success: true,
+            message: '52-week range updated from live data',
+            data: {
+                processed: processed,
+                total_live_stocks: liveData.length,
+                ranges_updated: updates.length,
+                new_highs: newHighs.length,
+                new_lows: newLows.length,
+                errors: errors.length,
+                details: {
+                    new_highs: newHighs.slice(0, 20), // First 20 for response
+                    new_lows: newLows.slice(0, 20),
+                    errors: errors.slice(0, 20),
+                    update_result: updateResult
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('Error in updateRangeFromLive:', error);
+        return res.status(500).json({
+            success: false,
+            message: `Internal server error: ${error.message}`
+        });
+    }
+};
+
+/**
  * GET /market-status
  * Get current market status from the API
  */
@@ -560,6 +773,7 @@ module.exports = {
     getNotificationsHandler,
     update52WeekRangeData,
     updateEndOfDay52WeekRange,
+    updateRangeFromLive,
     get52WeekRangeStatus,
     getMarketStatus
 };
