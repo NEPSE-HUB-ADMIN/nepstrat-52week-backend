@@ -100,6 +100,11 @@ const check52WeekHit = async (req, res) => {
  * Check if stocks are trading near 52-week high/low
  * To be called by cronjob.org during trading hours
  */
+/**
+ * GET /check-trading-near
+ * Check if stocks are trading near 52-week high/low
+ * To be called by cronjob.org during trading hours
+ */
 const checkTradingNear = async (req, res) => {
     try {
         const { symbol } = req.query;
@@ -170,17 +175,8 @@ const checkTradingNear = async (req, res) => {
             const isNearHigh = distanceHigh !== null && distanceHigh <= NEAR_THRESHOLD;
             const isNearLow = distanceLow !== null && distanceLow <= NEAR_THRESHOLD;
 
-            // Determine the appropriate note
-            let newNote = null;
-            if (isNearHigh && isNearLow) {
-                newNote = `${stock.symbol} is trading near both 52 week high and low (unusual)`;
-            } else if (isNearHigh) {
-                newNote = `${stock.symbol} is trading near 52 week high`;
-            } else if (isNearLow) {
-                newNote = `${stock.symbol} is trading near 52 week low`;
-            } else {
-                newNote = null; // Not near either boundary
-            }
+            // Determine the appropriate note using formatNearNote
+            const newNote = formatNearNote(stock.symbol, isNearHigh, isNearLow);
 
             // Get current note
             const currentNote = rangeRecord.note;
