@@ -6,6 +6,7 @@ const {
     get52WeekRange,
     getNotificationsHandler,
     update52WeekRangeData,
+    updateRangeFromLive,
     updateEndOfDay52WeekRange,
     get52WeekRangeStatus,
     getMarketStatus
