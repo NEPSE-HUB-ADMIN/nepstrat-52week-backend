@@ -125,6 +125,22 @@ const check52WeekHit = async (req, res) => {
  */
 const checkTradingNear = async (req, res) => {
     try {
+        const marketStatus = await fetchMarketStatus();
+        if (!marketStatus || marketStatus.status !== 'market open') {
+            return res.status(200).json({
+                success: true,
+                message: 'Market is currently closed, skipping trading near check',
+                data: {
+                    threshold: NEAR_THRESHOLD,
+                    total_processed: 0,
+                    note_updates: 0,
+                    updated: 0,
+                    results: [],
+                    market_status: marketStatus?.status || 'unknown'
+                }
+            });
+        }
+
         const { symbol } = req.query;
 
         // Fetch live market data
