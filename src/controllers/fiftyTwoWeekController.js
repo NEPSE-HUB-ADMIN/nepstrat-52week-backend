@@ -36,6 +36,24 @@ const NEAR_THRESHOLD = parseFloat(process.env.NEAR_52_WEEK_PERCENT) || 5;
  */
 const check52WeekHit = async (req, res) => {
     try {
+        const marketStatus = await fetchMarketStatus();
+        if (!marketStatus || marketStatus.status !== 'market open') {
+            return res.status(200).json({
+                success: true,
+                message: 'Market is not open. Skipping 52-week hit check.',
+                data: {
+                    checked: 0,
+                    high_hits: 0,
+                    low_hits: 0,
+                    new_notifications: 0,
+                    market_status: marketStatus?.status || 'unknown',
+                    today: marketStatus?.today || 'unknown',
+                    current_time: new Date().toISOString()
+                }
+            });
+        }
+
+
         // Fetch live market data
         let liveData;
         try {
