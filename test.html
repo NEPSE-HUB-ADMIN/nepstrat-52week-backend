@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NEPSE 52-Week API Tester</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
+        background: #0f172a;
+        color: #e2e8f0;
+        min-height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 20px;
+      }
+      .container {
+        max-width: 900px;
+        width: 100%;
+        background: #1e293b;
+        border-radius: 16px;
+        padding: 30px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+      }
+      h1 {
+        font-size: 24px;
+        font-weight: 700;
+        margin-bottom: 8px;
+        background: linear-gradient(135deg, #60a5fa, #a78bfa);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+      .subtitle {
+        color: #94a3b8;
+        font-size: 14px;
+        margin-bottom: 24px;
+      }
+      .url-display {
+        background: #0f172a;
+        padding: 12px 16px;
+        border-radius: 8px;
+        font-family: monospace;
+        font-size: 13px;
+        color: #60a5fa;
+        word-break: break-all;
+        margin-bottom: 20px;
+        border: 1px solid #334155;
+      }
+      .btn-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 24px;
+      }
+      .btn {
+        padding: 10px 24px;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 14px;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .btn-primary {
+        background: #3b82f6;
+        color: white;
+      }
+      .btn-primary:hover {
+        background: #2563eb;
+        transform: translateY(-1px);
+      }
+      .btn-success {
+        background: #22c55e;
+        color: white;
+      }
+      .btn-success:hover {
+        background: #16a34a;
+        transform: translateY(-1px);
+      }
+      .btn-warning {
+        background: #eab308;
+        color: #0f172a;
+      }
+      .btn-warning:hover {
+        background: #ca8a04;
+        transform: translateY(-1px);
+      }
+      .btn-danger {
+        background: #ef4444;
+        color: white;
+      }
+      .btn-danger:hover {
+        background: #dc2626;
+        transform: translateY(-1px);
+      }
+      .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+      }
+      .status-bar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 16px;
+        background: #0f172a;
+        border-radius: 8px;
+        margin-bottom: 16px;
+        font-size: 13px;
+        border: 1px solid #334155;
+      }
+      .spinner {
+        display: none;
+        width: 18px;
+        height: 18px;
+        border: 2px solid #334155;
+        border-top: 2px solid #3b82f6;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+      .spinner.active {
+        display: inline-block;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .response-section {
+        background: #0f172a;
+        border-radius: 8px;
+        padding: 16px;
+        border: 1px solid #334155;
+      }
+      .response-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+        font-size: 13px;
+        color: #94a3b8;
+      }
+      .response-body {
+        font-family: monospace;
+        font-size: 12px;
+        white-space: pre-wrap;
+        word-break: break-all;
+        max-height: 400px;
+        overflow-y: auto;
+        color: #e2e8f0;
+        background: #0a0f1a;
+        padding: 12px;
+        border-radius: 6px;
+        line-height: 1.6;
+      }
+      .response-body .key {
+        color: #60a5fa;
+      }
+      .response-body .string {
+        color: #34d399;
+      }
+      .response-body .number {
+        color: #fbbf24;
+      }
+      .response-body .boolean {
+        color: #f472b6;
+      }
+      .response-body .null {
+        color: #64748b;
+      }
+      .badge {
+        display: inline-block;
+        padding: 2px 10px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: 600;
+      }
+      .badge-success {
+        background: #22c55e20;
+        color: #22c55e;
+      }
+      .badge-error {
+        background: #ef444420;
+        color: #ef4444;
+      }
+      .badge-pending {
+        background: #eab30820;
+        color: #eab308;
+      }
+      .endpoint-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 16px;
+        padding-top: 16px;
+        border-top: 1px solid #334155;
+      }
+      .endpoint-tag {
+        background: #334155;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-family: monospace;
+        color: #94a3b8;
+      }
+      .endpoint-tag .method {
+        color: #60a5fa;
+        font-weight: 700;
+      }
+      .endpoint-tag .path {
+        color: #e2e8f0;
+      }
+      .footer {
+        margin-top: 16px;
+        font-size: 12px;
+        color: #64748b;
+        text-align: center;
+      }
+      @media (max-width: 600px) {
+        .container {
+          padding: 16px;
+        }
+        .btn-group {
+          flex-direction: column;
+        }
+        .btn {
+          justify-content: center;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>📊 NEPSE 52-Week API Tester</h1>
+      <p class="subtitle">
+        Test POST endpoints without console, curl, or Postman
+      </p>
+
+      <div class="url-display">
+        🌐 <span id="apiUrl">https://nepstrat-52week.vercel.app</span>
+      </div>
+
+      <div class="btn-group">
+        <button
+          class="btn btn-primary"
+          onclick="callEndpoint('/api/update-range-from-live', {})"
+        >
+          🔄 Update Range from Live
+        </button>
+        <button
+          class="btn btn-success"
+          onclick="callEndpoint('/api/update-52-week-range', {})"
+        >
+          📅 End-of-Day Update
+        </button>
+        <button
+          class="btn btn-warning"
+          onclick="callEndpoint('/api/check-52-week-hit', null, 'GET')"
+        >
+          🎯 Check 52-Week Hits
+        </button>
+        <button
+          class="btn btn-danger"
+          onclick="callEndpoint('/api/market-status', null, 'GET')"
+        >
+          📈 Market Status
+        </button>
+      </div>
+
+      <div class="status-bar">
+        <span class="spinner" id="spinner"></span>
+        <span id="statusText">Ready</span>
+        <span style="margin-left: auto">
+          <span id="statusBadge" class="badge badge-pending">● Idle</span>
+        </span>
+      </div>
+
+      <div class="response-section">
+        <div class="response-header">
+          <span>📋 Response</span>
+          <span style="font-size: 11px; color: #64748b">
+            <span id="responseTime"></span>
+            <span id="responseStatus"></span>
+          </span>
+        </div>
+        <div class="response-body" id="responseBody">
+          <span style="color: #64748b"
+            >Click a button above to make a request...</span
+          >
+        </div>
+      </div>
+
+      <div class="endpoint-list">
+        <span class="endpoint-tag"
+          ><span class="method">POST</span>
+          <span class="path">/api/update-range-from-live</span></span
+        >
+        <span class="endpoint-tag"
+          ><span class="method">POST</span>
+          <span class="path">/api/update-52-week-range</span></span
+        >
+        <span class="endpoint-tag"
+          ><span class="method">GET</span>
+          <span class="path">/api/check-52-week-hit</span></span
+        >
+        <span class="endpoint-tag"
+          ><span class="method">GET</span>
+          <span class="path">/api/market-status</span></span
+        >
+        <span class="endpoint-tag"
+          ><span class="method">GET</span>
+          <span class="path">/api/52-week-range</span></span
+        >
+        <span class="endpoint-tag"
+          ><span class="method">GET</span>
+          <span class="path">/api/check-trading-near</span></span
+        >
+      </div>
+
+      <div class="footer">
+        ⚡ All requests go to
+        <span id="footerUrl">nepstrat-52week.vercel.app</span>
+      </div>
+    </div>
+
+    <script>
+      const BASE_URL = "https://nepstrat-52week.vercel.app";
+      document.getElementById("apiUrl").textContent = BASE_URL;
+      document.getElementById("footerUrl").textContent = BASE_URL.replace(
+        "https://",
+        "",
+      );
+
+      const spinner = document.getElementById("spinner");
+      const statusText = document.getElementById("statusText");
+      const statusBadge = document.getElementById("statusBadge");
+      const responseBody = document.getElementById("responseBody");
+      const responseTime = document.getElementById("responseTime");
+      const responseStatus = document.getElementById("responseStatus");
+
+      function setStatus(text, type) {
+        statusText.textContent = text;
+        if (type === "loading") {
+          spinner.classList.add("active");
+          statusBadge.textContent = "● Loading...";
+          statusBadge.className = "badge badge-pending";
+        } else if (type === "success") {
+          spinner.classList.remove("active");
+          statusBadge.textContent = "✓ Success";
+          statusBadge.className = "badge badge-success";
+        } else if (type === "error") {
+          spinner.classList.remove("active");
+          statusBadge.textContent = "✗ Error";
+          statusBadge.className = "badge badge-error";
+        } else {
+          spinner.classList.remove("active");
+          statusBadge.textContent = "● Idle";
+          statusBadge.className = "badge badge-pending";
+        }
+      }
+
+      function formatJSON(json) {
+        return JSON.stringify(json, null, 2)
+          .replace(/"([^"]+)":/g, '<span class="key">"$1"</span>:')
+          .replace(/: "([^"]+)"/g, ': <span class="string">"$1"</span>')
+          .replace(/: (\d+\.?\d*)/g, ': <span class="number">$1</span>')
+          .replace(/: (true|false)/g, ': <span class="boolean">$1</span>')
+          .replace(/: (null)/g, ': <span class="null">$1</span>');
+      }
+
+      async function callEndpoint(path, body, method = "POST") {
+        const url = BASE_URL + path;
+
+        setStatus(`Calling ${method} ${path}...`, "loading");
+        responseBody.innerHTML =
+          '<span style="color:#eab308;">⏳ Waiting for response...</span>';
+        responseTime.textContent = "";
+        responseStatus.textContent = "";
+
+        const options = {
+          method: method,
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+        };
+
+        if (method === "POST" && body !== null) {
+          options.body = JSON.stringify(body);
+        }
+
+        const startTime = performance.now();
+
+        try {
+          const res = await fetch(url, options);
+          const endTime = performance.now();
+          const elapsed = ((endTime - startTime) / 1000).toFixed(2);
+
+          const data = await res.json();
+
+          responseTime.textContent = `⏱ ${elapsed}s`;
+          responseStatus.textContent = `📡 ${res.status} ${res.statusText}`;
+
+          if (res.ok) {
+            setStatus(
+              `✅ ${method} ${path} completed (${elapsed}s)`,
+              "success",
+            );
+            responseBody.innerHTML = formatJSON(data);
+          } else {
+            setStatus(`❌ ${method} ${path} failed (${res.status})`, "error");
+            responseBody.innerHTML = formatJSON(data);
+          }
+        } catch (err) {
+          setStatus(`❌ Network error: ${err.message}`, "error");
+          responseBody.innerHTML = `<span style="color:#ef4444;">❌ Error: ${err.message}</span>`;
+          responseTime.textContent = "";
+          responseStatus.textContent = "📡 Connection failed";
+        }
+      }
+
+      // Auto-run the range update on page load (optional)
+      // Uncomment below to auto-run:
+      // window.onload = function() {
+      //     setTimeout(() => callEndpoint('/api/update-range-from-live', {}), 500);
+      // };
+    </script>
+  </body>
+</html>
