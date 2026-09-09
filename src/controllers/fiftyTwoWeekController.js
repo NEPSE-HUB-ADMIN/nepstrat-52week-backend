@@ -37,18 +37,17 @@ const NEAR_THRESHOLD = parseFloat(process.env.NEAR_52_WEEK_PERCENT) || 5;
 const check52WeekHit = async (req, res) => {
     try {
         const marketStatus = await fetchMarketStatus();
-        if (!marketStatus || marketStatus.status !== 'market open') {
+        if (!marketStatus || marketStatus.today !== 'open') {
             return res.status(200).json({
                 success: true,
-                message: 'Market is not open. Skipping 52-week hit check.',
+                message: 'Today is not a trading day, skipping hit check',
                 data: {
                     checked: 0,
                     high_hits: 0,
                     low_hits: 0,
                     new_notifications: 0,
-                    market_status: marketStatus?.status || 'unknown',
                     today: marketStatus?.today || 'unknown',
-                    current_time: new Date().toISOString()
+                    status: marketStatus?.status || 'unknown'
                 }
             });
         }
@@ -126,17 +125,18 @@ const check52WeekHit = async (req, res) => {
 const checkTradingNear = async (req, res) => {
     try {
         const marketStatus = await fetchMarketStatus();
-        if (!marketStatus || marketStatus.status !== 'market open') {
+        if (!marketStatus || marketStatus.today !== 'open') {
             return res.status(200).json({
                 success: true,
-                message: 'Market is currently closed, skipping trading near check',
+                message: 'Today is not a trading day, skipping trading near check',
                 data: {
                     threshold: NEAR_THRESHOLD,
                     total_processed: 0,
                     note_updates: 0,
                     updated: 0,
                     results: [],
-                    market_status: marketStatus?.status || 'unknown'
+                    today: marketStatus?.today || 'unknown',
+                    status: marketStatus?.status || 'unknown'
                 }
             });
         }
