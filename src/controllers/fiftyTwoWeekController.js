@@ -1,7 +1,7 @@
 /**
  * Controller for 52-week range endpoints
  */
-
+const axios = require('axios');
 const { supabase } = require('../config/supabase');
 const { fetchLiveMarketData } = require('../services/liveNepseService');
 const {
@@ -800,6 +800,223 @@ const getMarketStatus = async (req, res) => {
     }
 };
 
+/**
+ * Fetch 52-week high/low data from ShareHub Nepal API
+ */
+const fetchShareHub52WeekData = async () => {
+    const SHAREHUB_API = 'https://sharehubnepal.com/data/api/v1/price-history/52w-high-low';
+
+    try {
+        const response = await axios.get(SHAREHUB_API, {
+            timeout: 30000,
+            headers: {
+                'Accept': 'application/json',
+                'User-Agent': 'NEPSE-52Week-Backend/1.0'
+            }
+        });
+
+        if (!response.data || !response.data.success || !Array.isArray(response.data.data)) {
+            throw new Error('Invalid response from ShareHub API');
+        }
+
+        return response.data.data;
+    } catch (error) {
+        if (error.code === 'ECONNABORTED') {
+            throw new Error('ShareHub API timeout');
+        }
+        if (error.response) {
+            throw new Error(`ShareHub API error: ${error.response.status}`);
+        }
+        throw new Error(`Failed to fetch ShareHub data: ${error.message}`);
+    }
+};
+
+/**
+ * POST /api/update-52-week-from-sharehub
+ * Update 52-week high/low columns from ShareHub Nepal API
+ */
+const update52WeekFromShareHub = async (req, res) => {
+    try {
+        // 1. Fetch data from ShareHub
+        let shareHubData;
+        try {
+            shareHubData = await fetchShareHub52WeekData();
+        } catch (error) {
+            return res.status(502).json({
+                success: false,
+                message: `Failed to fetch ShareHub data: ${error.message}`
+            });
+        }
+
+        if (!shareHubData || shareHubData.length === 0) {
+            return res.status(502).json({
+                success: false,
+                message: 'Empty response from ShareHub API'
+            });
+        }
+
+        // 2. Fetch existing 52-week range records to compare
+        let existingRecords;
+        try {
+            existingRecords = await getAllRangeRecords();
+        } catch (error) {
+            return res.status(500).json({
+                success: false,
+                message: `Failed to fetch existing records: ${error.message}`
+            });
+        }
+
+        // 3. Create a map of existing records for fast lookup
+        const existingMap = new Map();
+        existingRecords.forEach(record => {
+            existingMap.set(record.symbol, record);
+        });
+
+        // 4. Prepare updates
+        const updates = [];
+        const newRecords = [];
+        const changes = {
+            high_updated: [],
+            low_updated: [],
+            new_symbols: []
+        };
+        let skipped = 0;
+        let unchanged = 0;
+
+        for (const stock of shareHubData) {
+            try {
+                const symbol = stock.symbol?.toString().trim().toUpperCase();
+                const newHigh = stock.fiftyTwoWeekHigh;
+                const newLow = stock.fiftyTwoWeekLow;
+                const ltp = stock.lastTradedPrice;
+
+                // Validate required fields
+                if (!symbol || newHigh === null || newHigh === undefined ||
+                    newLow === null || newLow === undefined) {
+                    skipped++;
+                    continue;
+                }
+
+                // Validate numeric values
+                const parsedHigh = parseFloat(newHigh);
+                const parsedLow = parseFloat(newLow);
+                const parsedLtp = ltp !== null && ltp !== undefined ? parseFloat(ltp) : null;
+
+                if (isNaN(parsedHigh) || isNaN(parsedLow) || parsedHigh <= 0 || parsedLow <= 0) {
+                    skipped++;
+                    continue;
+                }
+
+                const existing = existingMap.get(symbol);
+
+                if (existing) {
+                    // Check if values have changed
+                    const currentHigh = existing['52_week_high'];
+                    const currentLow = existing['52_week_low'];
+
+                    const highChanged = Math.abs(currentHigh - parsedHigh) > 0.001;
+                    const lowChanged = Math.abs(currentLow - parsedLow) > 0.001;
+
+                    if (highChanged || lowChanged) {
+                        updates.push({
+                            symbol: symbol,
+                            '52_week_high': parsedHigh,
+                            '52_week_low': parsedLow,
+                            ltp: parsedLtp,
+                            updated_at: new Date().toISOString()
+                        });
+
+                        // Track changes for response
+                        if (highChanged) {
+                            changes.high_updated.push({
+                                symbol,
+                                old: currentHigh,
+                                new: parsedHigh
+                            });
+                        }
+                        if (lowChanged) {
+                            changes.low_updated.push({
+                                symbol,
+                                old: currentLow,
+                                new: parsedLow
+                            });
+                        }
+                    } else {
+                        unchanged++;
+                    }
+                } else {
+                    // New symbol - check if we should create it
+                    newRecords.push({
+                        symbol: symbol,
+                        ltp: parsedLtp,
+                        '52_week_high': parsedHigh,
+                        '52_week_low': parsedLow,
+                        market_capitalization: null,
+                        note: null,
+                        created_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString()
+                    });
+                    changes.new_symbols.push(symbol);
+                }
+            } catch (error) {
+                skipped++;
+            }
+        }
+
+        // 5. Apply updates to existing records
+        let updateResult = { updated: 0, errors: [] };
+        if (updates.length > 0) {
+            try {
+                updateResult = await bulkUpdateRangeRecords(updates);
+            } catch (error) {
+                console.error('Error updating ranges:', error);
+                updateResult.errors.push({ error: error.message });
+            }
+        }
+
+        // 6. Insert new records
+        let insertResult = { inserted: 0, errors: [] };
+        if (newRecords.length > 0) {
+            try {
+                const result = await upsertRangeRecords(newRecords);
+                insertResult.inserted = newRecords.length;
+            } catch (error) {
+                console.error('Error inserting new records:', error);
+                insertResult.errors.push({ error: error.message });
+            }
+        }
+
+        // 7. Return response
+        return res.status(200).json({
+            success: true,
+            message: '52-week data updated from ShareHub',
+            data: {
+                source: 'sharehubnepal.com',
+                total_from_source: shareHubData.length,
+                processed: shareHubData.length - skipped,
+                skipped: skipped,
+                unchanged: unchanged,
+                updated: updates.length,
+                new_symbols_added: newRecords.length,
+                errors: updateResult.errors.length + insertResult.errors.length,
+                details: {
+                    high_updated: changes.high_updated.slice(0, 30),
+                    low_updated: changes.low_updated.slice(0, 30),
+                    new_symbols: changes.new_symbols.slice(0, 30),
+                    errors: [...updateResult.errors, ...insertResult.errors].slice(0, 20)
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('Error in update52WeekFromShareHub:', error);
+        return res.status(500).json({
+            success: false,
+            message: `Internal server error: ${error.message}`
+        });
+    }
+};
+
 module.exports = {
     check52WeekHit,
     checkTradingNear,
@@ -807,6 +1024,7 @@ module.exports = {
     getNotificationsHandler,
     update52WeekRangeData,
     updateEndOfDay52WeekRange,
+    update52WeekFromShareHub,
     updateRangeFromLive,
     get52WeekRangeStatus,
     getMarketStatus
