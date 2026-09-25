@@ -6,8 +6,9 @@ const {
     get52WeekRange,
     getNotificationsHandler,
     update52WeekRangeData,
-    updateRangeFromLive,
     updateEndOfDay52WeekRange,
+    updateRangeFromLive,
+    update52WeekFromShareHub,
     get52WeekRangeStatus,
     getMarketStatus
 } = require('../controllers/fiftyTwoWeekController');
@@ -24,6 +25,7 @@ router.get('/market-status', getMarketStatus);
 router.post('/52-week-range/update', update52WeekRangeData);
 router.post('/update-52-week-range', updateEndOfDay52WeekRange);
 router.post('/update-range-from-live', updateRangeFromLive);
+router.post('/update-52-week-from-sharehub', update52WeekFromShareHub);
 
 // Log routes
 console.log('✅ Routes registered in router:');
